@@ -1,0 +1,28 @@
+{
+  "accuracy": 0.654,
+  "precision": 0.9795,
+  "recall": 0.3146,
+  "f1_score": 0.4762,
+  "real_accuracy": 0.9934,
+  "fake_accuracy": 0.3146,
+  "auc_roc": 0.8405,
+  "average_precision": 0.8683,
+  "confusion_matrix": [
+    [
+      4967,
+      33
+    ],
+    [
+      3427,
+      1573
+    ]
+  ],
+  "num_samples": 10000,
+  "num_real": 5000,
+  "num_fake": 5000,
+  "model": "CLIP-ViT-L/14",
+  "checkpoint": "fc_weights.pth",
+  "dataset": "MyDataset",
+  "evaluation_date": "2026-01-01",
+  "notes": ""
+}

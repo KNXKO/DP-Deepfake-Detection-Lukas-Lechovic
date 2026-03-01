@@ -1,0 +1,22 @@
+{
+  "accuracy": 0.5881,
+  "precision": 0.5747,
+  "recall": 0.677,
+  "f1_score": 0.6218,
+  "real_accuracy": 0.4992,
+  "fake_accuracy": 0.677,
+  "auc_roc": 0.6501,
+  "average_precision": 0.6464,
+  "confusion_matrix": [
+    [2496, 2504],
+    [1615, 3385]
+  ],
+  "num_samples": 10000,
+  "num_real": 5000,
+  "num_fake": 5000,
+  "model": "AIDE",
+  "checkpoint": "GenImage_train.pth",
+  "dataset": "MyDataset",
+  "evaluation_date": "2024-12-24",
+  "notes": ""
+}

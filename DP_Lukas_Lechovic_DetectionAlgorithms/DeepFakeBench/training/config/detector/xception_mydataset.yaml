@@ -1,0 +1,91 @@
+# log dir
+log_dir: ./logs/training
+
+# model setting
+pretrained: ./training/pretrained/xception-b5690688.pth
+model_name: xception
+backbone_name: xception
+
+# backbone setting
+backbone_config:
+  mode: original
+  num_classes: 2
+  inc: 3
+  dropout: false
+
+# dataset
+all_dataset: [MyDataset]
+train_dataset: [MyDataset]
+test_dataset: [MyDataset]
+
+compression: c23
+train_batchSize: 16
+test_batchSize: 16
+workers: 0
+frame_num: { "train": 32, "test": 32 }
+resolution: 256
+with_mask: false
+with_landmark: false
+
+# data augmentation
+use_data_augmentation: true
+data_aug:
+  flip_prob: 0.5
+  rotate_prob: 0.0
+  rotate_limit: 15
+  rotate_degree: 15
+  blur_prob: 0.0
+  blur_limit: 3
+  blur_sig: [0, 3]
+  jpeg_prob: 0.0
+  jpeg_qual: [50, 100]
+  brightness_limit: 0.1
+  contrast_limit: 0.1
+  quality_lower: 40
+  quality_upper: 100
+
+# label dict
+label_dict:
+  MyDataset_real: 0
+  MyDataset_fake: 1
+  real: 0
+  fake: 1
+  0_real: 0
+  1_fake: 1
+
+# mean and std
+mean: [0.5, 0.5, 0.5]
+std: [0.5, 0.5, 0.5]
+
+# optimizer config
+optimizer:
+  type: adam
+  adam:
+    lr: 0.0001
+    beta1: 0.9
+    beta2: 0.999
+    eps: 0.00000001
+    weight_decay: 0.0005
+    amsgrad: false
+
+# training config
+lr_scheduler: step
+lr_step: 5
+lr_gamma: 0.5
+nEpochs: 30
+save_epoch_freq: 5
+start_epoch: 0
+continue_train: false
+manualSeed: 42
+
+# metric
+metric_scoring: auc
+
+# loss
+loss_func: cross_entropy
+losstype: null
+
+# cuda
+cuda: true
+cudnn: true
+use_amp: true

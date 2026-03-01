@@ -1,0 +1,28 @@
+{
+    "Celeb-DF-v1": {
+        "Celeb-real": {
+            "train": {
+                "path": "Celeb-real",
+                "frames": [],
+                "label": "CelebDFv1_real"
+            },
+            "test": {
+                "path": "Celeb-real",
+                "frames": [],
+                "label": "CelebDFv1_real"
+            }
+        },
+        "Celeb-synthesis": {
+            "train": {
+                "path": "Celeb-synthesis",
+                "frames": [],
+                "label": "CelebDFv1_fake"
+            },
+            "test": {
+                "path": "Celeb-synthesis",
+                "frames": [],
+                "label": "CelebDFv1_fake"
+            }
+        }
+    }
+}
