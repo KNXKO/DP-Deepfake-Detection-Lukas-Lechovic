@@ -1,7 +1,38 @@
+# -*- coding: utf-8 -*-
+"""
+================================================================================
+AIDE DETECTOR EVALUATION SCRIPT
+================================================================================
+Author: Diploma Thesis Project
+Description: Comprehensive testing of AIDE detector on custom dataset
+             with checkpoint support and metrics generation.
+
+AIDE (AI-generated Image DEtector) is a state-of-the-art detector that
+leverages hybrid features combining visual artifacts and noise patterns
+for AI-generated image detection.
+
+This script enables:
+  - Testing pretrained AIDE model on image dataset
+  - Computing complete metrics (AUC, Accuracy, Precision, Recall, F1)
+  - Generating visualizations (ROC curve, Confusion Matrix, PR curve)
+  - Saving results for further analysis
+
+Usage:
+  python evaluate_detector.py --eval_data_path <dataset_path> \
+                              --checkpoint <model.pth> \
+                              [--output_dir <dir>]
+
+Reference:
+  Yan et al. "A Sanity Check for AI-generated Image Detection" (ICLR 2025)
+  https://github.com/shilinyan99/AIDE
+================================================================================
+"""
+
 import argparse
 import os
 import sys
 import json
+import csv
 import pickle
 from datetime import datetime
 
@@ -10,6 +41,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
+
+from PIL import Image
 
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for server environment
@@ -41,7 +74,8 @@ sys.path.insert(0, AIDE_DIR)
 sys.path.insert(0, PROJECT_ROOT)
 
 import models.AIDE as AIDE
-from data.datasets import TestDataset
+from data.datasets import transform_before_test, transform_train
+from data.dct import DCT_base_Rec_Module
 
 
 # ==============================================================================
@@ -49,6 +83,10 @@ from data.datasets import TestDataset
 # ==============================================================================
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Supported folder naming conventions for real/fake images
+REAL_FOLDER_NAMES = ['0_real', 'real']
+FAKE_FOLDER_NAMES = ['1_fake', 'fake']
 
 
 # ==============================================================================
@@ -60,6 +98,71 @@ class DatasetArgs:
     def __init__(self, eval_data_path):
         self.data_path = eval_data_path
         self.eval_data_path = eval_data_path
+
+
+class FlexibleTestDataset(torch.utils.data.Dataset):
+    """
+    Test dataset that accepts both 'real/fake' and '0_real/1_fake' folder naming.
+    Uses the same transforms as the original TestDataset.
+    """
+    def __init__(self, root):
+        self.data_list = []
+        self.dct = DCT_base_Rec_Module()
+
+        # Detect folder naming convention
+        real_dir = None
+        fake_dir = None
+        for name in REAL_FOLDER_NAMES:
+            candidate = os.path.join(root, name)
+            if os.path.isdir(candidate):
+                real_dir = candidate
+                break
+        for name in FAKE_FOLDER_NAMES:
+            candidate = os.path.join(root, name)
+            if os.path.isdir(candidate):
+                fake_dir = candidate
+                break
+
+        if real_dir is None or fake_dir is None:
+            raise ValueError(
+                f"Dataset must contain real and fake subdirectories.\n"
+                f"Accepted names: {REAL_FOLDER_NAMES} and {FAKE_FOLDER_NAMES}\n"
+                f"Found in {root}: {os.listdir(root)}"
+            )
+
+        for image_name in os.listdir(real_dir):
+            self.data_list.append({
+                'image_path': os.path.join(real_dir, image_name),
+                'label': 0
+            })
+        for image_name in os.listdir(fake_dir):
+            self.data_list.append({
+                'image_path': os.path.join(fake_dir, image_name),
+                'label': 1
+            })
+
+        print(f"  Real images: {sum(1 for d in self.data_list if d['label'] == 0)} (from {os.path.basename(real_dir)}/)")
+        print(f"  Fake images: {sum(1 for d in self.data_list if d['label'] == 1)} (from {os.path.basename(fake_dir)}/)")
+
+    def __len__(self):
+        return len(self.data_list)
+
+    def __getitem__(self, index):
+        sample = self.data_list[index]
+        image_path, targets = sample['image_path'], sample['label']
+
+        image = Image.open(image_path).convert('RGB')
+        image = transform_before_test(image)
+
+        x_minmin, x_maxmax, x_minmin1, x_maxmax1 = self.dct(image)
+
+        x_0 = transform_train(image)
+        x_minmin = transform_train(x_minmin)
+        x_maxmax = transform_train(x_maxmax)
+        x_minmin1 = transform_train(x_minmin1)
+        x_maxmax1 = transform_train(x_maxmax1)
+
+        return torch.stack([x_minmin, x_maxmax, x_minmin1, x_maxmax1, x_0], dim=0), torch.tensor(int(targets))
 
 
 # ==============================================================================
@@ -120,17 +223,18 @@ def load_checkpoint(model, checkpoint_path, device):
 #  EVALUATION
 # ==============================================================================
 
-def evaluate_model(model, dataloader, device):
+def evaluate_model(model, dataloader, dataset, device):
     """
     Evaluate model on dataset.
 
     Args:
         model: AIDE model
         dataloader: DataLoader with test data
+        dataset: TestDataset instance (used to retrieve file paths)
         device: Torch device
 
     Returns:
-        Dictionary with predictions and labels
+        Dictionary with predictions, labels, probabilities and file paths
     """
     model.eval()
 
@@ -139,6 +243,7 @@ def evaluate_model(model, dataloader, device):
     all_probabilities = []
 
     print("Running evaluation...")
+    sample_idx = 0
     with torch.no_grad():
         for images, labels in tqdm(dataloader, desc="Evaluating"):
             images = images.to(device)
@@ -150,11 +255,16 @@ def evaluate_model(model, dataloader, device):
             all_labels.extend(labels.cpu().numpy())
             all_predictions.extend(predictions.cpu().numpy())
             all_probabilities.extend(probabilities[:, 1].cpu().numpy())
+            sample_idx += len(labels)
+
+    # Collect file paths from dataset (order matches dataloader with shuffle=False)
+    all_paths = [item['image_path'] for item in dataset.data_list[:sample_idx]]
 
     return {
         'labels': np.array(all_labels),
         'predictions': np.array(all_predictions),
-        'probabilities': np.array(all_probabilities)
+        'probabilities': np.array(all_probabilities),
+        'image_paths': all_paths
     }
 
 
@@ -326,10 +436,43 @@ def print_results(metrics):
     print("=" * 70)
 
 
-def save_results(metrics, results, output_dir, checkpoint_name):
+def save_per_image_csv(results, output_path):
+    """
+    Save per-image results to CSV for threshold analysis.
+
+    Each row contains: image filename, true label, predicted probability,
+    prediction at default threshold (0.5), and source folder (real/fake).
+    This allows recomputing metrics at any threshold without re-running the model.
+
+    Args:
+        results: Dictionary with labels, predictions, probabilities, image_paths
+        output_path: Path to output CSV file
+    """
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'image_path', 'image_name', 'true_label', 'true_class',
+            'probability_fake', 'prediction_default', 'predicted_class'
+        ])
+        for i in range(len(results['labels'])):
+            img_path = results['image_paths'][i]
+            img_name = os.path.basename(img_path)
+            true_label = int(results['labels'][i])
+            true_class = 'fake' if true_label == 1 else 'real'
+            prob_fake = float(results['probabilities'][i])
+            pred = int(results['predictions'][i])
+            pred_class = 'fake' if pred == 1 else 'real'
+            writer.writerow([
+                img_path, img_name, true_label, true_class,
+                prob_fake, pred, pred_class
+            ])
+    print(f"Saved per-image results: {output_path}")
+
+
+def save_results(metrics, results, output_dir, checkpoint_name, dataset_name):
     """Save all results to output directory."""
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    result_dir = os.path.join(output_dir, f"MyDataset_full_results")
+    result_dir = os.path.join(output_dir, f"{dataset_name}_{timestamp}")
     os.makedirs(result_dir, exist_ok=True)
 
     # Save metrics as JSON
@@ -338,8 +481,12 @@ def save_results(metrics, results, output_dir, checkpoint_name):
         json.dump(metrics, f, indent=2)
     print(f"Saved: {metrics_path}")
 
+    # Save per-image CSV (enables threshold re-analysis)
+    csv_path = os.path.join(result_dir, 'per_image_results.csv')
+    save_per_image_csv(results, csv_path)
+
     # Save full results as pickle
-    results_path = os.path.join(result_dir, f"MyDataset_full_{timestamp}_results.pkl")
+    results_path = os.path.join(result_dir, 'results.pkl')
     with open(results_path, 'wb') as f:
         pickle.dump(results, f)
     print(f"Saved: {results_path}")
@@ -350,7 +497,7 @@ def save_results(metrics, results, output_dir, checkpoint_name):
     plot_precision_recall_curve(results, metrics, os.path.join(result_dir, 'precision_recall_curve.png'))
 
     # Save checkpoint info
-    checkpoint_path = os.path.join(result_dir, f"MyDataset_full_{timestamp}_checkpoint.pkl")
+    checkpoint_path = os.path.join(result_dir, 'checkpoint_info.pkl')
     with open(checkpoint_path, 'wb') as f:
         pickle.dump({'checkpoint': checkpoint_name, 'timestamp': timestamp}, f)
 
@@ -395,6 +542,8 @@ Examples:
                         help='Number of data loading workers')
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device to use (cuda or cpu)')
+    parser.add_argument('--max_samples', type=int, default=None,
+                        help='Limit number of images for quick testing (e.g. 50)')
 
     args = parser.parse_args()
 
@@ -407,17 +556,23 @@ Examples:
         print(f"ERROR: Dataset path does not exist: {args.eval_data_path}")
         sys.exit(1)
 
-    real_path = os.path.join(args.eval_data_path, '0_real')
-    fake_path = os.path.join(args.eval_data_path, '1_fake')
-    if not (os.path.exists(real_path) and os.path.exists(fake_path)):
-        print(f"ERROR: Dataset must contain '0_real' and '1_fake' subdirectories")
-        print(f"Run prepare_dataset.py first to prepare your dataset")
+    # Detect folder naming convention
+    has_0_real = os.path.isdir(os.path.join(args.eval_data_path, '0_real'))
+    has_real = os.path.isdir(os.path.join(args.eval_data_path, 'real'))
+    if not (has_0_real or has_real):
+        print(f"ERROR: Dataset must contain 'real' (or '0_real') and 'fake' (or '1_fake') subdirectories")
+        print(f"Found: {os.listdir(args.eval_data_path)}")
         sys.exit(1)
 
-    # Create dataset
+    # Create dataset - use FlexibleTestDataset for any naming convention
     print(f"\nLoading dataset from: {args.eval_data_path}")
-    dataset_args = DatasetArgs(args.eval_data_path)
-    dataset = TestDataset(is_train=False, args=dataset_args)
+    dataset = FlexibleTestDataset(args.eval_data_path)
+
+    # Limit dataset size for quick testing
+    if args.max_samples and args.max_samples < len(dataset):
+        dataset.data_list = dataset.data_list[:args.max_samples]
+        print(f"LIMITED to {args.max_samples} images (quick test mode)")
+
     print(f"Dataset loaded: {len(dataset)} images")
 
     # Create dataloader
@@ -435,7 +590,7 @@ Examples:
         model = load_checkpoint(model, args.checkpoint, device)
 
     # Run evaluation
-    results = evaluate_model(model, dataloader, device)
+    results = evaluate_model(model, dataloader, dataset, device)
 
     # Compute metrics
     metrics = compute_metrics(results)
@@ -444,8 +599,9 @@ Examples:
     print_results(metrics)
 
     # Save results
+    dataset_name = os.path.basename(os.path.normpath(args.eval_data_path))
     checkpoint_name = os.path.basename(args.checkpoint) if args.checkpoint else "none"
-    result_dir = save_results(metrics, results, args.output_dir, checkpoint_name)
+    result_dir = save_results(metrics, results, args.output_dir, checkpoint_name, dataset_name)
     print(f"\nAll results saved to: {result_dir}")
 
 
