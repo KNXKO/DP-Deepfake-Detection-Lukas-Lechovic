@@ -1,4 +1,4 @@
-# Generovanie vizuálnych informácií a rozpoznávanie generovaného či zmanipulovaného obsahu
+# Dipomová práca
 
 **Autor:** Lukáš Lechovič
 **Téma:** Generovanie vizuálnych informácií a rozpoznávanie generovaného či zmanipulovaného obsahu
