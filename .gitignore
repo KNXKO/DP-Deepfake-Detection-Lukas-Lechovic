@@ -16,8 +16,9 @@ Thumbs.db
 .ipynb_checkpoints/
 wandb/
 runs/
-.**.7z 
-*.7z.* 
-*.zip 
-*.tar 
-*.tar.gz 
+.**.7z
+*.7z.*
+*.zip
+*.tar
+*.tar.gz
+.claude/

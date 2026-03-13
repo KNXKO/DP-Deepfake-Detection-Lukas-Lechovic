@@ -1,7 +1,7 @@
 {
-  "timestamp": "2025-12-29T15:30:00",
-  "model": "../weights/blur_jpg_prob0.5.pth",
-  "dataset": "C:\\Users\\diabo\\Desktop\\MyDataset",
+  "timestamp": "2026-03-13T12:34:01.203456",
+  "model": "..\\weights\\blur_jpg_prob0.5.pth",
+  "dataset": "C:\\Users\\diabo\\Desktop\\FFHQ-FaceFusion-10k",
   "threshold": 0.5,
   "dataset_info": {
     "num_real": 5000,
@@ -13,6 +13,8 @@
     "precision": 61.76,
     "recall": 0.42,
     "f1_score": 0.83,
+    "real_accuracy": 99.74,
+    "fake_accuracy": 0.42,
     "specificity": 99.74,
     "auc_roc": 60.06,
     "average_precision": 58.51
@@ -23,7 +25,7 @@
     "false_positive": 13,
     "false_negative": 4979
   },
-  "notes": ""
+  "num_samples": 10000,
+  "num_real": 5000,
+  "num_fake": 5000
 }
-
-
