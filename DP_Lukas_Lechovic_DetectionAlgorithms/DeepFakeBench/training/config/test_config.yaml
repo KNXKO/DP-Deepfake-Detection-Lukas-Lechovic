@@ -41,3 +41,6 @@ label_dict:
   # MyDataset
   MyDataset_real: 0
   MyDataset_fake: 1
+  # FFHQ-FaceFusion-10k
+  FFHQ-FaceFusion-10k_real: 0
+  FFHQ-FaceFusion-10k_fake: 1
